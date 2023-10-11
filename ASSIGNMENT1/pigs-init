@@ -1,0 +1,20 @@
+#!/bin/dash
+
+# Check if the .pig directory already exists
+if test -d ".pig"
+then
+    echo "pigs-init: error: .pig already exists"
+    exit 1
+fi
+
+# Otherwise, initialise a .pig directrory and populate
+if test ! -d ".pig"
+then
+    mkdir ".pig"
+    mkdir ".pig/index"
+    echo "master" >> ".pig/CURRENTBRANCH_EDIT"
+    mkdir ".pig/repositories"
+    mkdir ".pig/repositories/master"
+    echo "Initialized empty pigs repository in .pig"
+    exit 0
+fi

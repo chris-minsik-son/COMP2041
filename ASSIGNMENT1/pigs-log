@@ -1,0 +1,10 @@
+#!/bin/dash
+
+if test -d ".pig"
+then
+    tac .pig/repositories/master/COMMIT_EDIT
+    exit 0
+else
+    echo "pigs-log: error: pigs repository directory .pig not found"
+    exit 1
+fi

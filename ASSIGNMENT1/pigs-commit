@@ -1,0 +1,109 @@
+#!/bin/dash
+
+# The pigs-commit command saves a copy of all files in the index to the repository.
+
+if test ! -d ".pig"
+then
+    echo "pigs-commit: error: pigs repository directory .pig not found"
+    exit 1
+fi
+
+# Validate arguments such as blank/whitespace messages
+if test "$1" = "-m" &&
+    test "$#" -eq 1
+then
+    echo "usage: pigs-commit [-a] -m commit-message"
+    exit 1
+elif test "$1" = "-m" &&
+     test "$#" -eq 2
+then
+    if test -z "$(echo "$2" | tr -d "[:space:]")"
+    then
+        echo "usage: pigs-commit [-a] -m commit-message"
+        exit 1
+    else
+        commitmsg=$2
+    fi
+elif test "$1" = "-a" &&
+     test $2 = "-m" &&
+     test "$#" -eq 3
+then
+    if test -z "$(echo "$3" | tr -d "[:space:]")"
+    then
+        echo "usage: pigs-commit [-a] -m commit-message"
+        exit 1
+    fi
+
+    # Compare each file in index with the file in current directory
+    for file in .pig/index*/*
+    do
+        filecheck=$(diff $(basename $file) $file | wc -l)
+        if test -f "$(basename $file)" &&
+            test "$filecheck" -ne 0 2>/dev/null
+        then
+            cp "$(basename $file)" "$file"
+            commitmsg=$3
+        fi
+    done
+else
+    echo "usage: pigs-commit [-a] -m commit-message"
+    exit 1
+fi
+
+# We cannot commit anything if the index is the same as the recent commit
+currentbranch=$(cat ".pig/CURRENTBRANCH_EDIT")
+recentcommit=$(( $(ls .pig/repositories/$currentbranch | wc -l) - 2 ))
+
+if test "$recentcommit" -eq 0 ||
+    test "$recentcommit" -gt 0
+then
+    filecheck=$(diff .pig/repositories/$currentbranch/$recentcommit .pig/index | wc -l)
+    if test "$filecheck" -eq 0
+    then
+        echo "nothing to commit"
+        exit 0
+    fi
+fi
+
+if test ! -f ".pig/RECENTBRANCH_EDIT"
+then
+    echo "master" > ".pig/RECENTBRANCH_EDIT"
+fi
+
+# At this stage, since there are differences or perhaps this is the first commit
+# We add the contents from the index to the new commit
+if test ! -f ".pig/RECENTBRANCH_EDIT"
+then
+    echo "master" > ".pig/RECENTBRANCH_EDIT"
+fi
+
+recentbranch=$(cat .pig/RECENTBRANCH_EDIT)
+currentcommit=$(ls -l .pig/repositories/$recentbranch | grep -E "^d" | grep -E "[0-9]$" | rev | cut -d' ' -f1 | tail -1)
+
+
+if test -z "$currentcommit"
+then
+    nextcommit=0
+fi
+
+if test ! -z "$currentcommit"
+then
+    nextcommit=$((currentcommit+1))
+fi
+
+echo "$currentbranch" > ".pig/RECENTBRANCH_EDIT"
+mkdir ".pig/repositories/$currentbranch/$nextcommit"
+
+# If the file in index exists in current, copy this to the current branch
+for file in .pig/index*/*
+do
+    if test -f "$file"
+    then
+        cp "$file" ".pig/repositories/$currentbranch/$nextcommit"
+    fi
+done
+
+echo "Committed as commit $nextcommit"
+
+echo "$nextcommit $commitmsg" >> .pig/repositories/$currentbranch/COMMIT_EDIT
+exit 0

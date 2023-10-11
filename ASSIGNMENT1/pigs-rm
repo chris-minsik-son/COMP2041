@@ -1,0 +1,147 @@
+#!/bin/dash
+
+# pigs-rm removes a file from the index, or, from the current directory and the index.
+# If the --cached option is specified, the file is removed only from the index, and
+# not from the current directory.
+
+# The --force option overrides this, and will carry out the removal even if the user
+# will lose work.
+
+# Assume the input [--force] [--cached] [file]+
+
+if test "$#" -eq 0
+then
+    echo "usage: pigs-rm [--force] [--cached] <filenames>"
+    exit 1
+elif test ! -d ".pig"
+then
+    echo "pigs-rm: error: pigs repository directory .pig not found"
+    exit 1
+fi
+
+# Arguments force or cached can be provided
+force=0
+cached=0
+
+# Is the file allowed to be removed?
+for file in "$@"
+do
+    if test "$file" = '--force'
+    then
+        force=1
+        continue
+    elif test "$file" = '--cached'
+    then
+        cached=1
+        continue
+    fi
+
+    recentcommit=$(( $(cat .pig/repositories/master/COMMIT_EDIT | wc -l) - 1 ))
+
+    # Delete file in working directory and index
+    if test "$cached" -eq 0
+    then
+        if test "$force" -eq 1
+        then
+            # If file is in working directory but not in index
+            if test -f "$file" && test ! -f ".pig/index/$file"
+            then
+                echo "pigs-rm: error: '$file' is not in the pigs repository"
+                exit 1
+            else
+                continue
+            fi
+        elif test ! -f ".pig/repositories/master/$recentcommit/$file" 
+        then
+            # No commits are made or not found in index
+            if test -f ".pig/index/$file"
+            then
+                echo "pigs-rm: error: '$file' has staged changes in the index"
+                exit 1
+            else
+                echo "pigs-rm: error: '$file' is not in the pigs repository"
+                exit 1
+            fi
+        fi
+
+        # From here, we need to compare the index file, the recent commit file, and
+        # the working directory
+
+        # Compare the files in the working directory and index
+        workindex=$(diff ".pig/index/$file" "$file" | wc -l) 2>/dev/null
+
+        # Compare the files in the working directory and recent commit
+        workrecent=$(diff ".pig/repositories/master/$recentcommit/$file" "$file" | wc -l) 2>/dev/null
+        
+        # Compare the files in the index and recent commit
+        indexrecent=$(diff ".pig/index/$file" ".pig/repositories/master/$recentcommit/$file" | wc -l) 2>/dev/null
+
+        # If the --force option was not provided we check the following
+        if test "$force" -ne 1
+        then
+            if test "$workrecent" -ne 0 &&
+                test "$indexrecent" -eq 0
+            then
+                echo "pigs-rm: error: '$file' in the repository is different to the working file"
+                exit 1
+            elif test "$workindex" -ne 0 &&
+                 test "$workrecent" -ne 0
+            then
+                echo "pigs-rm: error: '$file' in index is different to both the working file and the repository"
+                exit 1
+            elif test "$indexrecent" -ne 0
+            then
+                echo "pigs-rm: error: '$file' has staged changes in the index"
+                exit 1
+            fi
+        fi
+    else
+        if test "$force" -eq 1
+        then
+            continue
+        fi
+        
+        workindex=$(diff ".pig/index/$file" "$file" | wc -l) 2>/dev/null
+        workrecent=$(diff ".pig/repositories/master/$recentcommit/$file" "$file" | wc -l) 2>/dev/null
+        indexrecent=$(diff ".pig/index/$file" ".pig/repositories/master/$recentcommit/$file" | wc -l) 2>/dev/null
+
+        # Confirm whether the file exists in the working directory
+        # Confirm whether the file does not exist in the index
+        # Confirm whether the files does not exist in the most recent commit
+        if test -f "$file" &&
+            test ! -f ".pig/index/$file"  &&
+            test ! -f ".pig/repositories/master/$recentcommit/$file"
+        then
+            echo "pigs-rm: error: '$file' is not in the pigs repository"
+            exit 1
+        elif test "$workindex" -ne 0 &&
+            test "$indexrecent" -ne 0
+        then
+            echo "pigs-rm: error: '$file' in index is different to both the working file and the repository"
+            exit 1
+        fi
+    fi
+done
+
+# Remove files now from index, and working directory (if --cached option was provided)
+for file in "$@"
+do
+    if test "$file" = '--force'
+    then
+        force=1
+        continue
+    elif test "$file" = '--cached'
+    then
+        cached=1
+        continue
+    else
+        rm ".pig/index/$file"
+    fi
+    
+    if test "$cached" -eq 1
+    then
+        continue
+    else
+        rm "$file"
+    fi
+done

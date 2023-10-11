@@ -1,0 +1,36 @@
+#!/bin/dash
+
+# The pigs-add command adds the contents of one or more files to the index.
+
+# Filenames must be provided in the argument
+if test "$#" -eq 0
+then
+    echo "usage: pigs-add <filenames>"
+    exit 1
+elif test ! -d ".pig"
+then
+    echo "pigs-add: error: pigs repository directory .pig not found"
+    exit 1
+fi
+
+for file in "$@"
+do
+    if test ! -f "$file" &&
+        test ! -f ".pig/index/$file"
+    then
+        echo "pigs-add: error: can not open '$file'"
+        exit 1
+    fi
+done
+
+for file in "$@"
+do
+    if test ! -f "$file" &&
+        test -f ".pig/index/$file"
+    then
+        rm ".pig/index/$file"
+    else
+        cp "$file" ".pig/index"
+    fi
+done
+exit 0

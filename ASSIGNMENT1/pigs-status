@@ -1,0 +1,108 @@
+#!/bin/dash
+
+# pigs-status shows the status of files in the current directory, the index, and the repository.
+
+if test ! -d ".pig"
+then
+    echo "pigs-status: error: pigs repository directory .pig not found"
+    exit 1
+fi
+
+total=$(find . -type f | rev | cut -d'/' -f1 | rev | sort | uniq)
+
+for file in $total
+do
+    # Untracked files here
+    case "$file" in
+        "pigs-add" | "pigs-commit" | "pigs-init" | "pigs-log" | "pigs-rm" | "pigs-show" | "pigs-status" | "pigs-branch" | "pigs-checkout" | "pigs-merge")
+            echo "$file - untracked"
+            continue;;
+        "COMMIT_EDIT" | "CURRENTBRANCH_EDIT" | "RECENTBRANCH_EDIT")
+            continue;;
+        *) :
+    esac
+
+    currentbranch=$(cat ".pig/CURRENTBRANCH_EDIT")
+    recentcommit=$(( $(cat .pig/repositories/$currentbranch/COMMIT_EDIT | wc -l) - 1 ))
+
+    if test -f "$file" &&
+        test ! -f ".pig/index/$file"
+    then
+        echo "$file - untracked"
+        continue
+    elif test -f "$file" &&
+        test -f ".pig/index/$file" &&
+        test -f ".pig/repositories/$currentbranch/$recentcommit/$file"
+    then
+        # Compare the file in the working directory file and the index file
+        workindex=$(diff "$file" ".pig/index/$file" | wc -l)
+
+        # Compare the index file and the most recent commit file
+        indexrecent=$(diff ".pig/index/$file" ".pig/repositories/$currentbranch/$recentcommit/$file" | wc -l)
+
+        # Working directory/index and recent commit file comparisons
+        if test "$workindex" -ne 0 &&
+            test "$indexrecent" -ne 0
+        then
+            echo "$file - file changed, different changes staged for commit"
+            continue
+        elif test "$workindex" -ne 0 &&
+            test "$indexrecent" -eq 0
+        then
+            echo "$file - file changed, changes not staged for commit"
+            continue
+        fi
+
+        if test "$indexrecent" -ne 0
+        then
+            echo "$file - file changed, changes staged for commit"
+            continue
+        elif test "$indexrecent" -eq 0
+        then
+            echo "$file - same as repo"
+            continue
+        fi
+    fi
+
+    # Check if the file has been added to the index
+    if test -f "$file" &&
+        test -f ".pig/index/$file" &&
+        test ! -f ".pig/repositories/$currentbranch/$recentcommit/$file"
+    then
+        # Check that the added file is the same
+        check=$(diff "$file" ".pig/index/$file" | wc -l)
+        if test "$check" -ne 0
+        then
+            echo "$file - added to index, file changed"
+        else
+            echo "$file - added to index"
+        fi
+        continue
+    
+    # If the file has been added to the index but deleted from working directory
+    elif test ! -f "$file" &&
+         test -f ".pig/index/$file" &&
+         test ! -f ".pig/repositories/$currentbranch/$recentcommit/$file"
+    then
+        echo "$file - added to index, file deleted"
+        continue
+    
+    # Check if file is not in working directory and index
+    elif test ! -f "$file" &&
+         test ! -f ".pig/index/$file"
+    then
+        if test ! -f ".pig/repositories/$currentbranch/$recentcommit/$file"
+        then
+            continue
+        else
+            echo "$file - file deleted, deleted from index"
+            continue
+        fi
+
+    # Check if file has been deleted from the working directory
+    elif test ! -f "$file"
+    then
+        echo "$file - file deleted"
+        continue
+    fi
+done

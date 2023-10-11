@@ -1,0 +1,44 @@
+#!/bin/dash
+
+# The pigs-show should print the contents of the specified filename as of the specified commit.
+# If commit is omitted, the contents of the file in the index should be printed.
+
+if test ! -d ".pig"
+then
+    echo "pigs-show: error: pigs repository directory .pig not found"
+    exit 1
+elif test "$#" -ne 1
+then
+    echo "usage: pigs-show <commit>:<filename>"
+    exit 1
+else
+    commit=$(echo "$1" | cut -d':' -f1)
+    file=$(echo "$1" | sed "s/:/^/" | cut -d'^' -f2)
+
+    # Search file in index if commit is not given
+    if test -z "$commit" &&
+        test -f ".pig/index/$file"
+    then
+        cat ".pig/index/$file"
+        exit 0
+    elif test -z "$commit" &&
+        test ! -f ".pig/index/$file"
+    then
+        echo "pigs-show: error: '$file' not found in index"
+        exit 1
+    fi
+fi
+
+# Given a commit, we can assume this is a non-negative integer
+if test ! -d ".pig/repositories/master/$commit"
+then
+    echo "pigs-show: error: unknown commit '$commit'"
+    exit 1
+elif test ! -f ".pig/repositories/master/$commit/$file"
+then
+    echo "pigs-show: error: '$file' not found in commit $commit"
+    exit 1
+else
+    cat ".pig/repositories/master/$commit/$file"
+    exit 0
+fi
